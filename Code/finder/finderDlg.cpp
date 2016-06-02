@@ -513,8 +513,12 @@ void CfinderDlg::UpdateList(LPCTSTR str)
             for (int index = 0; index < count; ++index) {
                 const CString& name = arr.GetAt(index);
 
+                TCHAR basePath[MAX_PATH];
+                _tcscpy_s(basePath, MAX_PATH, (LPCTSTR)name);
+                PathRemoveFileSpec(basePath);
+
                 _listCtrl.InsertItem(insertIndex, PathFindFileName(name), 0);
-                _listCtrl.SetItemText(insertIndex, 1, name);
+                _listCtrl.SetItemText(insertIndex, 1, basePath);
                 ++insertIndex;
             }
         }
@@ -594,7 +598,7 @@ void CfinderDlg::ChangeStatus(ViewStatus viewStatus)
             HWND hwndForeground = GetForegroundWindow()->GetSafeHwnd();
             DWORD idFGThread = GetWindowThreadProcessId (hwndForeground, NULL);
             DWORD idThisThread = GetCurrentThreadId();
-            VERIFY (AttachThreadInput (idThisThread, idFGThread, TRUE));
+            //VERIFY (AttachThreadInput (idThisThread, idFGThread, TRUE));
             SetForegroundWindow();
         }
         
@@ -697,7 +701,7 @@ BOOL CfinderDlg::HandleForwardToListCtrl(MSG* pMsg)
 
 BOOL CfinderDlg::HandleEnter(MSG* pMsg)
 {
-    if (pMsg->hwnd != _edit.GetSafeHwnd()) {
+    if (pMsg->hwnd != _edit.GetSafeHwnd() && pMsg->hwnd != _listCtrl.GetSafeHwnd()) {
         return FALSE;
     }
 
