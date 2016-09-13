@@ -81,14 +81,31 @@ int _tmain(int argc, _TCHAR* argv[])
         _tprintf(_T("TimeDateStamp : %x (%04d/%02d/%02d-%02d:%02d:%02d)\n"), 
             imgFileHeader->TimeDateStamp, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
-        _tprintf(_T("PointerToSymbolTable : %x\n"), imgFileHeader->PointerToSymbolTable);
+        _tprintf(_T("PointerToSymbolTable : 0x%x\n"), imgFileHeader->PointerToSymbolTable);
         _tprintf(_T("NumberOfSymbols : %d\n"), imgFileHeader->NumberOfSymbols);
         _tprintf(_T("SizeOfOptionalHeader : %d\n"), imgFileHeader->SizeOfOptionalHeader);
-        _tprintf(_T("Characteristics : %x\n"), imgFileHeader->Characteristics);
+        _tprintf(_T("Characteristics : 0x%x\n"), imgFileHeader->Characteristics);
 
         _tprintf(_T("\nIAMGE_OPTIONAL_HEADER\n"));
-        IMAGE_OPTIONAL_HEADER* imgOptHeader = &ntHeader->OptionalHeader;
-        printf("%d, %d\n", sizeof(IMAGE_OPTIONAL_HEADER32), sizeof(IMAGE_OPTIONAL_HEADER64));
+        IMAGE_OPTIONAL_HEADER32* imgOptHeader = &ntHeader->OptionalHeader;
+        if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+            _tprintf(_T("LinverVersion %d.%d\n"), imgOptHeader->MajorLinkerVersion, imgOptHeader->MinorLinkerVersion);
+            _tprintf(_T("SizeOfCode %u, 0x%x\n"), imgOptHeader->SizeOfCode, imgOptHeader->SizeOfCode);
+            _tprintf(_T("SizeOfInitializedData %u, 0x%x\n"), imgOptHeader->SizeOfInitializedData, imgOptHeader->SizeOfInitializedData);
+            _tprintf(_T("SizeOfUninitializedData %u, 0x%x\n"), imgOptHeader->SizeOfUninitializedData, imgOptHeader->SizeOfUninitializedData);
+            _tprintf(_T("AddressOfEntryPoint 0x%x\n"), imgOptHeader->AddressOfEntryPoint);
+            _tprintf(_T("BaseOfCode 0x%x\n"), imgOptHeader->BaseOfCode);
+            _tprintf(_T("BaseOfData 0x%x\n"), imgOptHeader->BaseOfData);
+            _tprintf(_T("ImageBase 0x%x\n"), imgOptHeader->ImageBase);
+            _tprintf(_T("SectionAlignment %u, 0x%x\n"), imgOptHeader->SectionAlignment, imgOptHeader->SectionAlignment);
+            _tprintf(_T("FileAlignment %u, 0x%x\n"), imgOptHeader->FileAlignment, imgOptHeader->FileAlignment);
+            _tprintf(_T("OSVersion %d, %d\n"), imgOptHeader->MajorOperatingSystemVersion, imgOptHeader->MinorOperatingSystemVersion);
+            _tprintf(_T("ImageVersion %d, %d\n"), imgOptHeader->MajorImageVersion, imgOptHeader->MinorImageVersion);
+        } else if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+
+        }
+
+
 
     }
     
