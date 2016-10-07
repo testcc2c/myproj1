@@ -22,7 +22,6 @@ void PrintError(LPCTSTR msg)
     exit(1);
 }
 
-
 int _tmain(int argc, _TCHAR* argv[])
 {
     LPCTSTR fileName = _T("test.exe");
@@ -31,7 +30,7 @@ int _tmain(int argc, _TCHAR* argv[])
         PrintLastError(_T("failed to open file"));
     }
 
-    HANDLE mapObj = CreateFileMapping(file, nullptr, PAGE_READONLY | SEC_IMAGE, 0, 0, nullptr);
+    HANDLE mapObj = CreateFileMapping(file, nullptr, PAGE_READONLY /*| SEC_IMAGE*/, 0, 0, nullptr);
     if (mapObj == NULL) {
         PrintLastError(_T("failed to create mapping object"));
     }
@@ -88,6 +87,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
         _tprintf(_T("\nIAMGE_OPTIONAL_HEADER\n"));
         IMAGE_OPTIONAL_HEADER32* imgOptHeader = &ntHeader->OptionalHeader;
+        IMAGE_DATA_DIRECTORY* imgDataDirectory = nullptr;
+
         if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
             _tprintf(_T("LinverVersion %d.%d\n"), imgOptHeader->MajorLinkerVersion, imgOptHeader->MinorLinkerVersion);
             _tprintf(_T("SizeOfCode %u, 0x%x\n"), imgOptHeader->SizeOfCode, imgOptHeader->SizeOfCode);
@@ -101,12 +102,74 @@ int _tmain(int argc, _TCHAR* argv[])
             _tprintf(_T("FileAlignment %u, 0x%x\n"), imgOptHeader->FileAlignment, imgOptHeader->FileAlignment);
             _tprintf(_T("OSVersion %d, %d\n"), imgOptHeader->MajorOperatingSystemVersion, imgOptHeader->MinorOperatingSystemVersion);
             _tprintf(_T("ImageVersion %d, %d\n"), imgOptHeader->MajorImageVersion, imgOptHeader->MinorImageVersion);
-        } else if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+            _tprintf(_T("SubsystemVersion %d, %d\n"), imgOptHeader->MajorSubsystemVersion, imgOptHeader->MinorSubsystemVersion);
+            _tprintf(_T("Win32VersionValue %u\n"), imgOptHeader->Win32VersionValue);
+            _tprintf(_T("SizeOfImage %u\n"), imgOptHeader->SizeOfImage);
+            _tprintf(_T("SizeOfHeaders %u\n"), imgOptHeader->SizeOfHeaders);
+            _tprintf(_T("CheckSum 0x%x\n"), imgOptHeader->CheckSum);
+            _tprintf(_T("SubSystem %u\n"), imgOptHeader->Subsystem);
+            _tprintf(_T("DllCharacteristics 0x%x\n"), imgOptHeader->DllCharacteristics);
+            _tprintf(_T("LoaderFlags 0x%x\n"), imgOptHeader->DllCharacteristics);
+            _tprintf(_T("NumberOfRvaAndSizes %u\n"), imgOptHeader->NumberOfRvaAndSizes);
 
+            imgDataDirectory = imgOptHeader->DataDirectory;
+
+        } else if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+            // 
         }
 
 
+        LPCTSTR imageDirEntryNames[] = {
+            _T("IMAGE_DIRECTORY_ENTRY_EXPORT"),
+            _T("IMAGE_DIRECTORY_ENTRY_IMPORT"),
+            _T("IMAGE_DIRECTORY_ENTRY_RESOURCE"),
+            _T("IMAGE_DIRECTORY_ENTRY_EXCEPTION"),
+            _T("IMAGE_DIRECTORY_ENTRY_SECURITY"),
+            _T("IMAGE_DIRECTORY_ENTRY_BASERELOC"),
+            _T("IMAGE_DIRECTORY_ENTRY_DEBUG"),
+            _T("IMAGE_DIRECTORY_ENTRY_ARCHITECTURE"),
+            _T("IMAGE_DIRECTORY_ENTRY_GLOBALPTR"),
+            _T("IMAGE_DIRECTORY_ENTRY_TLS"),
+            _T("IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG"),
+            _T("IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT"),
+            _T("IMAGE_DIRECTORY_ENTRY_IAT"),
+            _T("IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT"),
+            _T("IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR"),
+            _T("IMAGE_DIRECTORY_ENTRY_NULL"),
+        };
 
+        for (int i = 0; i < IMAGE_NUMBEROF_DIRECTORY_ENTRIES; ++i) {
+            _tprintf(_T("%s va(0x%x), size(%d)\n"), imageDirEntryNames[i], imgDataDirectory[i].VirtualAddress, imgDataDirectory[i].Size);
+        }
+
+
+        //IMAGE_NT_HEADERS* ntHeader = (IMAGE_NT_HEADERS*)(startOfImage + dosHeader->e_lfanew);
+        IMAGE_SECTION_HEADER* imageSectionHeader = nullptr;
+        
+        if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+            imageSectionHeader = (IMAGE_SECTION_HEADER*)(startOfImage + dosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS));
+        } else if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+            //
+        }
+        
+
+        for (int i = 0; i < imgFileHeader->NumberOfSections; ++i) {
+            _tprintf(_T("\nIMAGE_SECTION_HEADER\n"));
+            IMAGE_SECTION_HEADER& h = imageSectionHeader[i];
+            printf("name %s\n", h.Name);
+            _tprintf(_T("VirtualSize %u\n"), h.Misc.VirtualSize);
+            _tprintf(_T("VirtualAddress 0x%x\n"), h.VirtualAddress);
+            _tprintf(_T("SizeOfRawData %u\n"), h.SizeOfRawData);
+            _tprintf(_T("PointerToRawData 0x%x\n"), h.PointerToRawData);
+            _tprintf(_T("PointerToRelocations 0x%x\n"), h.PointerToRelocations);
+            _tprintf(_T("PointerToLinenumbers 0x%x\n"), h.PointerToLinenumbers);
+            _tprintf(_T("NumberOfRelocations %u\n"), h.NumberOfRelocations);
+            _tprintf(_T("NumberOfLinenumbers %u\n"), h.NumberOfLinenumbers);
+            _tprintf(_T("Characteristics 0x%x\n"), h.Characteristics);
+            _tprintf(_T("====================================================\n"), h.Characteristics);
+        }
+
+        
     }
     
 
