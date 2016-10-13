@@ -22,9 +22,34 @@ void PrintError(LPCTSTR msg)
     exit(1);
 }
 
+
+unsigned int RVAToRaw(uint8* startOfImage, unsigned int rva)
+{
+    IMAGE_DOS_HEADER* dosHeader = (IMAGE_DOS_HEADER*)startOfImage;
+    IMAGE_NT_HEADERS* ntHeader = (IMAGE_NT_HEADERS*)(startOfImage + dosHeader->e_lfanew);
+    IMAGE_FILE_HEADER* imgFileHeader = &ntHeader->FileHeader;
+    IMAGE_OPTIONAL_HEADER32* imgOptHeader = &ntHeader->OptionalHeader;
+    IMAGE_SECTION_HEADER* imageSectionHeader = nullptr;
+
+    if (imgOptHeader->Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+        imageSectionHeader = (IMAGE_SECTION_HEADER*)(startOfImage + dosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS));
+    }
+
+    for (WORD i = 0; i < imgFileHeader->NumberOfSections; ++i) {
+        unsigned int start = imageSectionHeader[i].VirtualAddress;
+        unsigned int end = start + imageSectionHeader[i].Misc.VirtualSize;
+        if (start <= rva && rva <= end) {
+            return (rva - start) + imageSectionHeader[i].PointerToRawData;
+        }
+    }
+
+    return 0;
+}
+
+
 int _tmain(int argc, _TCHAR* argv[])
 {
-    LPCTSTR fileName = _T("test.exe");
+    LPCTSTR fileName = _T("test.dll");
     HANDLE file = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) {
         PrintLastError(_T("failed to open file"));
@@ -166,10 +191,90 @@ int _tmain(int argc, _TCHAR* argv[])
             _tprintf(_T("NumberOfRelocations %u\n"), h.NumberOfRelocations);
             _tprintf(_T("NumberOfLinenumbers %u\n"), h.NumberOfLinenumbers);
             _tprintf(_T("Characteristics 0x%x\n"), h.Characteristics);
-            _tprintf(_T("====================================================\n"), h.Characteristics);
+            _tprintf(_T("====================================================\n"));
         }
 
-        
+
+        // export table
+        unsigned int expRva = imgDataDirectory[0].VirtualAddress;
+        if (expRva) {
+            unsigned int raw = RVAToRaw(startOfImage, expRva);
+            _tprintf(_T("export table rva(0x%x), raw(0x%x)\n"), expRva, raw);
+            IMAGE_EXPORT_DIRECTORY* ied = (IMAGE_EXPORT_DIRECTORY*)(startOfImage + raw);
+
+            unsigned int rawName = RVAToRaw(startOfImage, ied->Name);
+            LPCSTR name = (LPCSTR)(startOfImage + rawName);
+            printf("    name : %s\n", name);
+
+            _tprintf(_T("    NumberOfNames : %u\n"), ied->NumberOfNames);
+
+            unsigned int rawNames = RVAToRaw(startOfImage, ied->AddressOfNames);
+            _tprintf(_T("    AddressOfNames : rva(0x%x), raw(0x%x)\n"), ied->AddressOfNames, rawNames);
+
+
+            _tprintf(_T("    Base : %u\n"), ied->Base);
+            unsigned int rawOrdinals = RVAToRaw(startOfImage, ied->AddressOfNameOrdinals);
+            _tprintf(_T("    AddressOfNameOrdinals : rva(0x%x), raw(0x%x)\n"), ied->AddressOfNameOrdinals, rawOrdinals);
+
+            _tprintf(_T("    NumberOfFunctions : %u\n"), ied->NumberOfFunctions);
+            unsigned int rawFuncs = RVAToRaw(startOfImage, ied->AddressOfFunctions);
+            printf("    AddressOfFunctions : rvs(0x%x), raw(0x%x)\n", ied->AddressOfFunctions, rawFuncs);
+
+            WORD* ordinals = (WORD*)(startOfImage + rawOrdinals);
+            DWORD* nameRVAs = (DWORD*)(startOfImage + rawNames);
+            DWORD* funcs = (DWORD*)(startOfImage + rawFuncs);
+
+            for (DWORD i = 0; i < ied->NumberOfNames; ++i) {
+                DWORD nameRVA = nameRVAs[i];
+                DWORD nameRAW = RVAToRaw(startOfImage, nameRVA);
+                printf("        export rva(0x%x), raw(0x%x), ord(%4d), func(0x%x), name(%s)\n", nameRVA, nameRAW, ied->Base + ordinals[i], RVAToRaw(startOfImage, funcs[ordinals[i]]), startOfImage + nameRAW);
+            }
+
+            _tprintf(_T("====================================================\n"));
+        }
+
+        unsigned int impRva = imgDataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+        if (impRva) {
+            unsigned int raw = RVAToRaw(startOfImage, impRva);
+            _tprintf(_T("import table rva(0x%x), raw(0x%x)\n"), impRva, raw);
+
+            IMAGE_IMPORT_DESCRIPTOR* iid = (IMAGE_IMPORT_DESCRIPTOR*)(startOfImage + raw);
+
+            while (*(unsigned int*)iid) {
+                unsigned int nameRaw = RVAToRaw(startOfImage, iid->Name);
+                printf("dll : %s\n", startOfImage + nameRaw);
+
+
+                unsigned int oftRaw = RVAToRaw(startOfImage, iid->OriginalFirstThunk);
+                _tprintf(_T("    OriginalFirstThunk : rva(0x%x), raw(0x%x)\n"), iid->OriginalFirstThunk, oftRaw);
+
+                _tprintf(_T("    TimeDateStamp : 0x%x\n"), iid->TimeDateStamp);
+                _tprintf(_T("    ForwarderChain : 0x%x\n"), iid->ForwarderChain);
+
+
+                unsigned int ftRaw = RVAToRaw(startOfImage, iid->FirstThunk);
+                _tprintf(_T("    FirstThunk : rva(0x%x), raw(0x%x)\n"), iid->FirstThunk, ftRaw);
+
+
+                IMAGE_THUNK_DATA32* itd = (IMAGE_THUNK_DATA32*)(startOfImage + oftRaw);
+                while (*(unsigned int*)itd) {
+                    if (itd->u1.Ordinal & 0x80000000) {
+                        _tprintf(_T("        ord(%u)\n"), itd->u1.Ordinal & 0xFFFF);
+                    } else {
+                        unsigned int addrRaw = RVAToRaw(startOfImage, itd->u1.AddressOfData);
+                        IMAGE_IMPORT_BY_NAME* iibn = (IMAGE_IMPORT_BY_NAME*)(startOfImage + addrRaw);
+                        printf("        ord(%u), name(%s)\n", iibn->Hint, iibn->Name);
+                    }
+
+                    ++itd;
+                }
+
+                printf("\n");
+
+
+                ++iid;
+            }
+        }
     }
     
 
